@@ -10,9 +10,10 @@ interface SongSearchProps {
   embedded?: boolean; // quando true, renderiza resultados dentro do fluxo (não absolute)
   showAddButton?: boolean; // quando true, mostra botão explícito de adicionar
   autoFocus?: boolean; // quando true, foca no input ao montar
+  onSearchTermChange?: (term: string) => void; // emite termo para o container
 }
 
-const SongSearch: React.FC<SongSearchProps> = ({ onSongSelect, embedded = false, showAddButton = false, autoFocus = false }) => {
+const SongSearch: React.FC<SongSearchProps> = ({ onSongSelect, embedded = false, showAddButton = false, autoFocus = false, onSearchTermChange }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,7 +75,10 @@ const SongSearch: React.FC<SongSearchProps> = ({ onSongSelect, embedded = false,
           type="search"
           placeholder="Buscar por número, título ou artista..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            if (onSearchTermChange) onSearchTermChange(e.target.value);
+          }}
           className="pl-10 bg-white/90 border-karaoke-primary focus:border-karaoke-secondary focus-visible:ring-karaoke-light py-6 text-lg"
           ref={inputRef}
           autoFocus={autoFocus}

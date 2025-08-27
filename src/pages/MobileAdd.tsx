@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 const MobileAdd: React.FC = () => {
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [singerName, setSingerName] = useState('');
   const [queueCount, setQueueCount] = useState(0);
   const { toast } = useToast();
@@ -55,7 +56,13 @@ const MobileAdd: React.FC = () => {
 
       <main className="flex-1 px-3 py-4 max-w-screen-sm mx-auto w-full">
         <div className="space-y-4">
-          <SongSearch onSongSelect={setSelectedSong} embedded showAddButton autoFocus />
+          <SongSearch
+            onSongSelect={setSelectedSong}
+            embedded
+            showAddButton
+            autoFocus
+            onSearchTermChange={setSearchTerm}
+          />
 
           {selectedSong && (
             <Card>
@@ -82,26 +89,28 @@ const MobileAdd: React.FC = () => {
             </Card>
           )}
 
-          <div>
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">Lista completa</h2>
-            <div className="max-h-[60vh] overflow-y-auto rounded border">
-              {fullList.map((song) => (
-                <button
-                  key={song.id}
-                  className="w-full text-left px-3 py-2 border-b hover:bg-gray-50 active:bg-gray-100"
-                  onClick={() => setSelectedSong(song)}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs bg-karaoke-primary text-white rounded px-2 py-0.5">{song.number}</span>
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{song.title}</div>
-                      <div className="text-xs text-gray-600 truncate">{song.artist}</div>
+          {searchTerm.trim() === '' && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-700 mb-2">Lista completa</h2>
+              <div className="max-h-[60vh] overflow-y-auto rounded border">
+                {fullList.map((song) => (
+                  <button
+                    key={song.id}
+                    className="w-full text-left px-3 py-2 border-b hover:bg-gray-50 active:bg-gray-100"
+                    onClick={() => setSelectedSong(song)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-karaoke-primary text-white rounded px-2 py-0.5">{song.number}</span>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{song.title}</div>
+                        <div className="text-xs text-gray-600 truncate">{song.artist}</div>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
     </div>
