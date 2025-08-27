@@ -19,9 +19,9 @@ const AddToQueueModal: React.FC<AddToQueueModalProps> = ({ song, isOpen, onClose
   const [singerName, setSingerName] = useState('');
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!song) return;
     if (!singerName.trim()) {
       toast({
@@ -34,10 +34,19 @@ const AddToQueueModal: React.FC<AddToQueueModalProps> = ({ song, isOpen, onClose
 
     const queueItem: QueueItem = {
       song,
-      singer: singerName,
+      singer: singerName.trim(),
     };
 
-    addToQueue(queueItem);
+    const result = await addToQueue(queueItem);
+    if (!result) {
+      toast({
+        title: "Falha ao adicionar",
+        description: "Não foi possível adicionar à fila. Tente novamente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
       title: "Adicionado à fila!",
       description: `${song.title} foi adicionada à fila para ${singerName}.`,
