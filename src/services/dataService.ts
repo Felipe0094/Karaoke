@@ -289,130 +289,151 @@ const getServerBaseUrl = (): string => {
   }
 };
 
-// Função para buscar a fila de reprodução (tenta servidor, fallback local por aba)
+// Funções de Fila usando Supabase
 export const getQueue = async (): Promise<QueueItem[]> => {
   try {
-    const base = getServerBaseUrl();
-    const resp = await fetch(`${base}/queue`, { cache: 'no-cache' });
-    if (resp.ok) {
-      const data = await resp.json();
-      return Array.isArray(data) ? (data as QueueItem[]) : [];
-    }
+    // Ordena por posição e depois por created_at
+    const { data, error } = await supabase
+      .from('queue')
+      .select('*')
+      .order('queue_position', { ascending: true, nullsFirst: true })
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    // Mapear para QueueItem com Song resolvida
+    const items = await Promise.all(rows.map(async (row: any): Promise<QueueItem> => {
+      const song = (await getSongByNumber(row.song_id)) || {
+        id: row.song_id,
+        number: row.song_id,
+        title: 'Música não encontrada',
+        artist: '-',
+        lyrics: null,
+      };
+      return {
+        id: row.id,
+        song,
+        singer: row.singer_name,
+        queue_position: row.queue_position || undefined,
+        created_at: row.created_at || undefined,
+      };
+    }));
+    return normalizeQueuePositions(items);
   } catch (e) {
-    // Ignora, usa fallback local
-  }
-
-  try {
-    let queue = loadQueueFromStorage();
-    if (!queue || queue.length === 0) return [];
-    queue = normalizeQueuePositions(queue);
-    saveQueueToStorage(queue);
-    return queue;
-  } catch (error) {
-    console.error('Erro ao buscar fila local:', error);
+    console.error('Erro ao buscar fila (supabase):', e);
     return [];
   }
 };
 
-// Função para adicionar uma música à fila (tenta servidor, fallback local)
 export const addToQueue = async (queueItem: { song: Song; singer: string }): Promise<QueueItem | null> => {
-  // Primeiro tenta no servidor compartilhado
   try {
-    const base = getServerBaseUrl();
-    const resp = await fetch(`${base}/queue`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(queueItem)
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      return data as QueueItem;
-    }
-  } catch (e) {
-    // Fallback para armazenamento local
-  }
+    // Obter próxima posição
+    const { data: maxRows, error: errMax } = await supabase
+      .from('queue')
+      .select('queue_position')
+      .order('queue_position', { ascending: false })
+      .limit(1);
+    if (errMax) throw errMax;
+    const nextPosition = (maxRows && maxRows[0]?.queue_position ? maxRows[0].queue_position : 0) + 1;
 
-  try {
-    const queue = loadQueueFromStorage();
-    const nextPosition = queue.length > 0
-      ? Math.max(...queue.map(q => q.queue_position || 0)) + 1
-      : 1;
-
-    const newItem: QueueItem = {
-      id: generateQueueItemId(),
-      song: queueItem.song,
-      singer: queueItem.singer,
+    const insert = {
+      song_id: queueItem.song.number,
+      singer_name: queueItem.singer,
       queue_position: nextPosition,
-      created_at: new Date().toISOString()
     };
+    const { data, error } = await supabase
+      .from('queue')
+      .insert([insert])
+      .select()
+      .single();
+    if (error) throw error;
 
-    const updated = [...queue, newItem];
-    saveQueueToStorage(updated);
-    return newItem;
-  } catch (error) {
-    console.error('Erro ao adicionar à fila local:', error);
+    return {
+      id: data.id,
+      song: queueItem.song,
+      singer: data.singer_name,
+      queue_position: data.queue_position || undefined,
+      created_at: data.created_at || undefined,
+    };
+  } catch (e) {
+    console.error('Erro ao adicionar à fila (supabase):', e);
     return null;
   }
 };
 
-// Função para remover uma música da fila
 export const removeFromQueue = async (index: number): Promise<boolean> => {
   try {
-    const queue = loadQueueFromStorage();
-    if (!queue || index < 0 || index >= queue.length) {
-      console.error('Índice inválido para remover da fila.');
-      return false;
-    }
-    queue.splice(index, 1);
-    const normalized = normalizeQueuePositions(queue);
-    saveQueueToStorage(normalized);
+    // Buscar fila ordenada e obter id pelo índice
+    const { data: rows, error } = await supabase
+      .from('queue')
+      .select('id')
+      .order('queue_position', { ascending: true, nullsFirst: true })
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    if (!rows || index < 0 || index >= rows.length) return false;
+    const id = rows[index].id;
+    const { error: delErr } = await supabase.from('queue').delete().eq('id', id);
+    if (delErr) throw delErr;
+    // Normalizar posições
+    await normalizeQueuePositionsInDb();
     return true;
-  } catch (error) {
-    console.error('Erro ao remover da fila local:', error);
+  } catch (e) {
+    console.error('Erro ao remover da fila (supabase):', e);
     return false;
   }
 };
 
-// Função para limpar toda a fila
 export const clearQueue = async (): Promise<boolean> => {
   try {
-    sessionStorage.removeItem(QUEUE_STORAGE_KEY);
+    const { error } = await supabase.from('queue').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) throw error;
     return true;
-  } catch (error) {
-    console.error('Erro ao limpar fila local:', error);
+  } catch (e) {
+    console.error('Erro ao limpar fila (supabase):', e);
     return false;
   }
 };
 
-// Função para mover um item na fila
 export const moveQueueItem = async (fromIndex: number, toIndex: number): Promise<boolean> => {
   try {
-    const queue = loadQueueFromStorage();
-    if (!queue || fromIndex < 0 || toIndex < 0 || fromIndex >= queue.length || toIndex >= queue.length) {
-      console.error('Índices inválidos para mover na fila.');
-      return false;
-    }
+    const { data: rows, error } = await supabase
+      .from('queue')
+      .select('id')
+      .order('queue_position', { ascending: true, nullsFirst: true })
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    if (!rows || fromIndex < 0 || toIndex < 0 || fromIndex >= rows.length || toIndex >= rows.length) return false;
 
-    const [moved] = queue.splice(fromIndex, 1);
-    queue.splice(toIndex, 0, moved);
+    const order = rows.map(r => r.id);
+    const [moved] = order.splice(fromIndex, 1);
+    order.splice(toIndex, 0, moved);
 
-    const normalized = normalizeQueuePositions(queue);
-    saveQueueToStorage(normalized);
+    // Atualizar posições sequencialmente
+    await Promise.all(order.map((id, idx) => supabase
+      .from('queue')
+      .update({ queue_position: idx + 1 })
+      .eq('id', id)));
+
     return true;
-  } catch (error) {
-    console.error('Erro ao mover item na fila local:', error);
+  } catch (e) {
+    console.error('Erro ao mover item na fila (supabase):', e);
     return false;
   }
 };
 
-// Função auxiliar para reordenar a fila
-const reorderQueue = async (): Promise<void> => {
+// Normaliza posições na base conforme created_at
+const normalizeQueuePositionsInDb = async (): Promise<void> => {
   try {
-    const queue = loadQueueFromStorage();
-    const normalized = normalizeQueuePositions(queue);
-    saveQueueToStorage(normalized);
-  } catch (error) {
-    console.error('Erro ao reordenar fila local:', error);
+    const { data: rows, error } = await supabase
+      .from('queue')
+      .select('id')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    await Promise.all((rows || []).map((r: any, idx: number) => supabase
+      .from('queue')
+      .update({ queue_position: idx + 1 })
+      .eq('id', r.id)));
+  } catch (e) {
+    console.error('Erro ao normalizar posições (supabase):', e);
   }
 };
 
@@ -473,13 +494,33 @@ const convertToRankingItem = async (rankingRow: any): Promise<RankingItem> => {
 // Função para buscar o ranking
 export const getRanking = async (): Promise<RankingItem[]> => {
   try {
-    const ranking = loadRankingFromStorage();
-    // Ordenar por score desc e limitar a 10 (atualizado de 5 para 10)
-    return [...ranking]
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 10);
-  } catch (error) {
-    console.error('Erro ao buscar ranking local:', error);
+    const { data, error } = await supabase
+      .from('ranking')
+      .select('*')
+      .order('score', { ascending: false })
+      .limit(10);
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    const items = await Promise.all(rows.map(async (row: any): Promise<RankingItem> => {
+      const song = (await getSongByNumber(row.song_id)) || {
+        id: row.song_id,
+        number: row.song_id,
+        title: 'Música não encontrada',
+        artist: '-',
+        lyrics: null,
+      };
+      return {
+        id: row.id,
+        song,
+        singer: row.singer_name,
+        score: row.score,
+        date: row.created_at,
+        created_at: row.created_at,
+      };
+    }));
+    return items;
+  } catch (e) {
+    console.error('Erro ao buscar ranking (supabase):', e);
     return [];
   }
 };
@@ -487,20 +528,27 @@ export const getRanking = async (): Promise<RankingItem[]> => {
 // Função para adicionar uma pontuação ao ranking
 export const addToRanking = async (rankingItem: { song: Song; singer: string; score: number }): Promise<RankingItem | null> => {
   try {
-    const current = loadRankingFromStorage();
-    const newItem: RankingItem = {
-      id: (Math.random().toString(36).slice(2, 10) + Date.now().toString(36)),
-      song: rankingItem.song,
-      singer: rankingItem.singer,
+    const payload = {
+      song_id: rankingItem.song.number,
+      singer_name: rankingItem.singer,
       score: rankingItem.score,
-      date: new Date().toISOString(),
-      created_at: new Date().toISOString()
     };
-    const updated = [...current, newItem];
-    saveRankingToStorage(updated);
-    return newItem;
-  } catch (error) {
-    console.error('Erro ao adicionar ao ranking local:', error);
+    const { data, error } = await supabase
+      .from('ranking')
+      .insert([payload])
+      .select()
+      .single();
+    if (error) throw error;
+    return {
+      id: data.id,
+      song: rankingItem.song,
+      singer: data.singer_name,
+      score: data.score,
+      date: data.created_at,
+      created_at: data.created_at,
+    };
+  } catch (e) {
+    console.error('Erro ao adicionar ao ranking (supabase):', e);
     return null;
   }
 };
@@ -508,10 +556,11 @@ export const addToRanking = async (rankingItem: { song: Song; singer: string; sc
 // Função para limpar todo o ranking
 export const clearRanking = async (): Promise<boolean> => {
   try {
-    sessionStorage.removeItem(RANKING_STORAGE_KEY);
+    const { error } = await supabase.from('ranking').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) throw error;
     return true;
-  } catch (error) {
-    console.error('Erro ao limpar ranking local:', error);
+  } catch (e) {
+    console.error('Erro ao limpar ranking (supabase):', e);
     return false;
   }
 };
@@ -519,12 +568,11 @@ export const clearRanking = async (): Promise<boolean> => {
 // Função para remover um item específico do ranking
 export const removeFromRanking = async (id: string): Promise<boolean> => {
   try {
-    const ranking = loadRankingFromStorage();
-    const filtered = ranking.filter(item => item.id !== id);
-    saveRankingToStorage(filtered);
+    const { error } = await supabase.from('ranking').delete().eq('id', id);
+    if (error) throw error;
     return true;
-  } catch (error) {
-    console.error('Erro ao remover item do ranking:', error);
+  } catch (e) {
+    console.error('Erro ao remover item do ranking (supabase):', e);
     return false;
   }
 };
@@ -537,13 +585,27 @@ export const generateScore = (): number => {
 // Função para buscar as configurações do app
 export const getSettings = async (): Promise<AppSettings | null> => {
   try {
-    const SETTINGS_STORAGE_KEY = 'appSettings:v1';
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as AppSettings;
-      return parsed;
+    const { data, error } = await supabase
+      .from('settings')
+      .select('*')
+      .limit(1);
+    if (error) throw error;
+    if (data && data.length > 0) {
+      const row: any = data[0];
+      // sound_effects jsonb → AppSettings.soundEffects
+      const soundEffects = (row.sound_effects || {}) as AppSettings['soundEffects'];
+      const app: AppSettings = {
+        id: row.id,
+        videosPath: row.videos_path || '',
+        backgroundImage: row.background_image || undefined,
+        adminPassword: row.admin_password || undefined,
+        useServer: row.use_server ?? true,
+        soundEffects,
+        created_at: row.created_at || undefined,
+      };
+      return app;
     }
-    // Default inicial
+    // Criar defaults se não existir
     const defaults: AppSettings = {
       videosPath: '',
       backgroundImage: undefined,
@@ -552,66 +614,73 @@ export const getSettings = async (): Promise<AppSettings | null> => {
       useServer: true,
       created_at: new Date().toISOString(),
     };
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(defaults));
-    return defaults;
-  } catch (error) {
-    console.error('Erro ao buscar configurações (local):', error);
-    return {
-      videosPath: '',
-      backgroundImage: undefined,
-      soundEffects: {},
-      adminPassword: 'admin123',
-      useServer: true,
-      created_at: new Date().toISOString(),
+    const payload = {
+      videos_path: defaults.videosPath,
+      background_image: defaults.backgroundImage || null,
+      sound_effects: defaults.soundEffects,
+      admin_password: defaults.adminPassword,
+      use_server: defaults.useServer,
     };
+    const { data: inserted, error: insErr } = await supabase
+      .from('settings')
+      .insert([payload])
+      .select('*')
+      .single();
+    if (insErr) throw insErr;
+    return {
+      id: inserted.id,
+      videosPath: inserted.videos_path || '',
+      backgroundImage: inserted.background_image || undefined,
+      adminPassword: inserted.admin_password || undefined,
+      useServer: inserted.use_server ?? true,
+      soundEffects: (inserted.sound_effects || {}) as any,
+      created_at: inserted.created_at || undefined,
+    };
+  } catch (error) {
+    console.error('Erro ao buscar configurações (supabase):', error);
+    return null;
   }
 };
 
 // Função para atualizar as configurações do app
 export const updateSettings = async (settings: AppSettings): Promise<AppSettings | null> => {
   try {
-    const SETTINGS_STORAGE_KEY = 'appSettings:v1';
-    const toSave: AppSettings = {
-      ...settings,
-      created_at: settings.created_at || new Date().toISOString(),
+    const payload = {
+      videos_path: settings.videosPath || '',
+      background_image: settings.backgroundImage || null,
+      sound_effects: settings.soundEffects || {},
+      admin_password: settings.adminPassword || null,
+      use_server: settings.useServer ?? true,
     };
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toSave));
-    // Sincronizar com o servidor local para que as rotas /videos e /sounds saibam os diretórios
-    try {
-      const getDirectoryFromPath = (filePath?: string) => {
-        if (!filePath) return undefined;
-        const clean = filePath.replace(/["']/g, '').replace(/\\/g, '/');
-        const idx = clean.lastIndexOf('/');
-        if (idx === -1) return undefined;
-        return clean.substring(0, idx);
-      };
-
-      const soundsPathCandidates = [
-        toSave.soundEffects?.high,
-        toSave.soundEffects?.medium,
-        toSave.soundEffects?.low,
-        toSave.soundEffects?.drums,
-        toSave.soundEffects?.incomplete,
-      ];
-      let soundsPath: string | undefined;
-      for (const candidate of soundsPathCandidates) {
-        const dir = getDirectoryFromPath(candidate);
-        if (dir) { soundsPath = dir; break; }
-      }
-
-      await fetch(`${getServerBaseUrl()}/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videosPath: toSave.videosPath,
-          soundsPath,
-        })
-      }).catch(() => {});
-    } catch (_) { /* ignora falhas de sync, configuração local já salva */ }
-
-    return toSave;
+    let upsertResult;
+    if (settings.id) {
+      upsertResult = await supabase
+        .from('settings')
+        .update(payload)
+        .eq('id', settings.id)
+        .select('*')
+        .single();
+    } else {
+      upsertResult = await supabase
+        .from('settings')
+        .insert([payload])
+        .select('*')
+        .single();
+    }
+    const { data, error } = upsertResult as any;
+    if (error) throw error;
+    const saved: AppSettings = {
+      id: data.id,
+      videosPath: data.videos_path || '',
+      backgroundImage: data.background_image || undefined,
+      adminPassword: data.admin_password || undefined,
+      useServer: data.use_server ?? true,
+      soundEffects: (data.sound_effects || {}) as any,
+      created_at: data.created_at || undefined,
+    };
+    return saved;
   } catch (error) {
-    console.error('Erro ao atualizar configurações (local):', error);
+    console.error('Erro ao atualizar configurações (supabase):', error);
     return null;
   }
 };
