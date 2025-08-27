@@ -67,7 +67,7 @@ export default {
 					ring: 'hsl(var(--sidebar-ring))'
 				},
 				karaoke: {
-					primary: "#9b87f5",
+					primary: "#7d65d3",
 					secondary: "#7E69AB",
 					tertiary: "#6E59A5",
 					light: "#E5DEFF",
