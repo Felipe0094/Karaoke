@@ -273,11 +273,16 @@ export const getSongByNumber = async (number: string): Promise<Song | null> => {
   }
 };
 
-// Resolve base URL do servidor local usando o host atual (suporta acesso na mesma rede)
+// Resolve base URL do servidor API (suporta produção com URL remota via env)
 const getServerBaseUrl = (): string => {
+  // Permitir configuração via variável de ambiente do Vite
+  const envBase = (import.meta as any)?.env?.VITE_SERVER_BASE_URL as string | undefined;
+  if (envBase && typeof envBase === 'string' && envBase.trim()) {
+    return envBase.replace(/\/$/, '');
+  }
+  // Fallback: usar host atual com porta 3001 (útil em LAN)
   try {
     const { protocol, hostname } = window.location;
-    // Default porta 3001
     return `${protocol}//${hostname}:3001`;
   } catch {
     return `http://localhost:3001`;
@@ -594,7 +599,7 @@ export const updateSettings = async (settings: AppSettings): Promise<AppSettings
         if (dir) { soundsPath = dir; break; }
       }
 
-      await fetch('http://localhost:3001/config', {
+      await fetch(`${getServerBaseUrl()}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
