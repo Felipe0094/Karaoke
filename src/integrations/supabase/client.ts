@@ -3,10 +3,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://drufkqjxtgexpbwkwbti.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRydWZrcWp4dGdleHBid2t3YnRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc0MDI2NjYsImV4cCI6MjA2Mjk3ODY2Nn0.hVfbdcNO5OeSZ6lCR4_jbRjzwg-_Og1ghMBVh-IzFhU";
-
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// Hardcoded for private deployment
+const SUPABASE_URL = 'https://mjaxvbvgkgnfsmlghdke.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1qYXh2YnZna2duZnNtbGdoZGtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczOTYxNTcsImV4cCI6MjA2Mjk3MjE1N30.dhHwe070VW90tFRJwroB2Dl45b3MGo7XbaBT84GepAw';
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
