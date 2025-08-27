@@ -37,7 +37,7 @@ const SongQueue: React.FC<SongQueueProps> = ({ queue, compact = false, hidePlayB
   }
 
   return (
-    <Card className={`${compact ? 'bg-black/30 text-white' : 'bg-white/90'} border-karaoke-primary h-fit`}>
+    <Card className={`${compact ? 'bg-black/30 text-white' : 'bg-white/70'} border-karaoke-primary h-fit`}>
       <CardHeader className="pb-1 px-3 py-2">
         <CardTitle className="flex items-center gap-1 text-karaoke-primary text-sm">
           <Clock className="h-4 w-4" />

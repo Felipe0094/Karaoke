@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import SongSearch from '@/components/SongSearch';
@@ -22,6 +22,7 @@ const Index = () => {
   const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const navigate = useNavigate();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Carrega dados iniciais
   useEffect(() => {
@@ -40,6 +41,140 @@ const Index = () => {
     };
     
     loadInitialData();
+  }, []);
+
+  // WebGL shader background setup
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const gl = canvas.getContext('webgl');
+    if (!gl) return;
+
+    const vertexShaderSource = `
+      attribute vec2 a_position;
+      void main() {
+          gl_Position = vec4(a_position, 0.0, 1.0);
+      }
+    `;
+
+    const fragmentShaderSource = `
+      precision highp float;
+      uniform vec2 iResolution;
+      uniform float iTime;
+      uniform vec2 iMouse;
+      const int POINTS = 16;
+      const float WAVE_OFFSET = 12000.0;
+      const float SPEED = 1.0 / 12.0;
+      const float COLOR_SPEED = 1.0 / 4.0;
+      uniform float BRIGHTNESS;
+
+      void voronoi(vec2 uv, inout vec3 col) {
+          vec3 vor = vec3(0.0);
+          float time = (iTime + WAVE_OFFSET) * SPEED;
+          float bestDistance = 999.0;
+          float lastBestDistance = bestDistance;
+          for (int i = 0; i < POINTS; i++) {
+              float fi = float(i);
+              vec2 p = vec2(mod(fi, 1.0) * 0.1 + sin(fi), -0.05 + 0.15 * float(i / 10) + cos(fi + time * cos(uv.x * 0.025)));
+              p.x += 0.01 * sin(iMouse.x / iResolution.x * 3.14);
+              p.y += 0.01 * cos(iMouse.y / iResolution.y * 3.14);
+              float d = distance(uv, p);
+              if (d < bestDistance) {
+                  lastBestDistance = bestDistance;
+                  bestDistance = d;
+                  vor.x = p.x;
+                  vor.yz = vec2(p.x * 0.4 + p.y, p.y) * vec2(0.9, 0.87);
+              }
+          }
+          col *= 0.68 + 0.19 * vor;
+          col += smoothstep(0.99, 1.05, 1.0 - abs(bestDistance - lastBestDistance)) * 0.9;
+          col += smoothstep(0.95, 1.01, 1.0 - abs(bestDistance - lastBestDistance)) * 0.1 * col;
+          col += (vor) * 0.1 * smoothstep(0.5, 1.0, 1.0 - abs(bestDistance - lastBestDistance));
+      }
+
+      void main() {
+          vec2 uv = gl_FragCoord.xy/iResolution.xy;
+          vec3 col = 0.5 + 0.5*cos(iTime*COLOR_SPEED+uv.xyx+vec3(0.0,2.0,4.0));
+          voronoi(uv * 4.0 - 1.0, col);
+          gl_FragColor = vec4(col, 1.0) * BRIGHTNESS;
+      }
+    `;
+
+    const compileShader = (source: string, type: number) => {
+      const shader = gl.createShader(type)!;
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      return shader;
+    };
+
+    const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+    const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
+
+    const program = gl.createProgram()!;
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    const positions = new Float32Array([-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0]);
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+    const positionAttribLocation = gl.getAttribLocation(program, 'a_position');
+    const resolutionUniformLocation = gl.getUniformLocation(program, 'iResolution');
+    const timeUniformLocation = gl.getUniformLocation(program, 'iTime');
+    const mouseUniformLocation = gl.getUniformLocation(program, 'iMouse');
+    const brightnessUniformLocation = gl.getUniformLocation(program, 'BRIGHTNESS');
+
+    gl.enableVertexAttribArray(positionAttribLocation);
+    gl.vertexAttribPointer(positionAttribLocation, 2, gl.FLOAT, false, 0, 0);
+
+    let startTime = Date.now();
+    let mouseX = 0;
+    let mouseY = 0;
+    let rafId = 0;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    };
+
+    const resizeCanvas = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.floor(window.innerWidth * dpr);
+      const height = Math.floor(window.innerHeight * dpr);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    };
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('mousemove', handleMouseMove);
+    resizeCanvas();
+
+    const render = () => {
+      rafId = window.requestAnimationFrame(render);
+      const elapsedTime = (Date.now() - startTime) / 1000;
+      gl.useProgram(program);
+      gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
+      gl.uniform1f(timeUniformLocation, elapsedTime);
+      gl.uniform2f(mouseUniformLocation, mouseX, mouseY);
+      gl.uniform1f(brightnessUniformLocation, 0.8);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    };
+
+    render();
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
   }, []);
 
   // Atualiza a fila e o ranking a cada 5 segundos
@@ -93,12 +228,14 @@ const Index = () => {
 
   return (
     <div 
-      className="karaoke-container h-screen flex flex-col overflow-hidden" 
+      className="karaoke-container h-screen flex flex-col overflow-hidden relative" 
       style={settings?.backgroundImage ? { backgroundImage: `url(${settings.backgroundImage})` } : {}}
     >
+      {/* Animated shader background */}
+      <canvas ref={canvasRef} className="shader-canvas" />
       <Header />
       
-      <main className="flex-1 container mx-auto p-4 flex flex-col items-center overflow-hidden">
+      <main className="flex-1 container mx-auto p-4 flex flex-col items-center overflow-hidden relative z-10">
         <div className="w-full max-w-5xl h-full flex flex-col">
           <div className="mb-6">
             <SongSearch onSongSelect={handleSongSelect} />

@@ -7,7 +7,7 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <header className="bg-gradient-karaoke p-4 text-white shadow-md">
+    <header className="p-4 text-white shadow-md bg-white/10 backdrop-blur-md border-b border-white/10">
       <div className="container mx-auto grid grid-cols-3 items-center">
         <div></div>
         <h1 className="text-2xl md:text-3xl font-bold text-center">KaraokêApp</h1>

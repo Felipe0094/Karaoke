@@ -109,6 +109,33 @@
     background-position: center;
   }
 
+  /* Fullscreen animated background (Spline) */
+  .spline-container {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .spline-iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  /* Fullscreen shader canvas background */
+  .shader-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    display: block;
+  }
+
   .score-background {
     @apply min-h-screen flex items-center justify-center;
     background-size: cover;

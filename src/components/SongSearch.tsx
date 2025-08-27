@@ -79,7 +79,7 @@ const SongSearch: React.FC<SongSearchProps> = ({ onSongSelect, embedded = false,
             setSearchTerm(e.target.value);
             if (onSearchTermChange) onSearchTermChange(e.target.value);
           }}
-          className="pl-10 bg-white/90 border-karaoke-primary focus:border-karaoke-secondary focus-visible:ring-karaoke-light py-6 text-lg"
+          className="pl-10 bg-white/70 border-karaoke-primary focus:border-karaoke-secondary focus-visible:ring-karaoke-light py-6 text-lg"
           ref={inputRef}
           autoFocus={autoFocus}
         />

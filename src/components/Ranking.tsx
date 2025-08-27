@@ -16,7 +16,7 @@ const Ranking: React.FC<RankingProps> = ({ ranking }) => {
 
   if (ranking.length === 0) {
     return (
-      <Card className="bg-white/90 border-karaoke-primary h-fit">
+      <Card className="bg-white/70 border-karaoke-primary h-fit">
         <CardHeader className="pb-1 px-3 py-2">
           <CardTitle className="flex items-center gap-1 text-karaoke-primary text-sm">
             <Star className="h-4 w-4" />
@@ -33,7 +33,7 @@ const Ranking: React.FC<RankingProps> = ({ ranking }) => {
   }
 
   return (
-    <Card className="bg-white/90 border-karaoke-primary h-fit">
+    <Card className="bg-white/25 border-karaoke-primary h-fit">
       <CardHeader className="pb-1 px-3 py-2">
         <CardTitle className="flex items-center gap-1 text-karaoke-primary text-sm">
           <Star className="h-4 w-4" />
