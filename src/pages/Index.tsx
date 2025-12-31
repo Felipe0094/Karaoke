@@ -239,23 +239,28 @@ const Index = () => {
         <div className="w-full max-w-5xl h-full flex flex-col">
           <div className="mb-6">
             <SongSearch onSongSelect={handleSongSelect} />
-            <div className="mt-4 self-start md:fixed md:top-4 md:left-4 md:z-50">
+            <div className="hidden md:block md:fixed md:top-4 md:left-4 md:z-50">
               <div className="bg-white p-2 rounded shadow">
-                <QRCodeSVG value={`${window.location.origin}/add`} size={96} includeMargin />
+                <QRCodeSVG 
+                  value="https://karaoke-khaki.vercel.app/" 
+                  size={150} 
+                  level="H"
+                  includeMargin={true}
+                />
               </div>
             </div>
             
             {selectedSong && (
               <div className="flex justify-center mt-6 gap-4">
                 <Button 
-                  className="bg-karaoke-primary hover:bg-karaoke-secondary" 
+                  className="bg-karaoke-primary hover:bg-karaoke-secondary hidden md:inline-flex" 
                   onClick={handleStartSong}
                 >
                   Iniciar Música
                 </Button>
                 <Button 
                   variant="outline" 
-                  className="border-karaoke-primary text-karaoke-primary hover:bg-karaoke-light" 
+                  className="border-karaoke-primary text-karaoke-primary hover:bg-karaoke-light w-full md:w-auto" 
                   onClick={handleAddToQueue}
                 >
                   Adicionar à Fila
@@ -265,8 +270,12 @@ const Index = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 auto-rows-min">
-            <Ranking ranking={ranking.slice(0, 5)} />
-            <SongQueue queue={queue.slice(0, 5)} />
+            <div className="order-2 md:order-1">
+              <Ranking ranking={ranking.slice(0, 5)} />
+            </div>
+            <div className="order-1 md:order-2">
+              <SongQueue queue={queue.slice(0, 5)} />
+            </div>
           </div>
         </div>
       </main>

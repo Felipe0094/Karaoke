@@ -11,7 +11,7 @@ const Header: React.FC = () => {
       <div className="container mx-auto grid grid-cols-3 items-center">
         <div></div>
         <h1 className="text-2xl md:text-3xl font-bold text-center">KaraokêApp</h1>
-        <div className="flex gap-2 justify-self-end">
+        <div className="flex gap-2 justify-self-end hidden md:flex">
           <Button 
             variant="outline" 
             onClick={() => navigate('/')}

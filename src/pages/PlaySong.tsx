@@ -382,7 +382,7 @@ const PlaySong = () => {
     if (!startTime) return;
 
     const performanceTime = (Date.now() - startTime) / 1000; // Tempo em segundos
-    const minimumTime = 30; // 30 segundos
+    const minimumTime = 60; // 1 minuto em segundos
 
     if (performanceTime < minimumTime) {
       setIsPerformanceIncomplete(true);
@@ -568,7 +568,7 @@ const PlaySong = () => {
       const now = Date.now();
       const hasStart = typeof startTime === 'number' && startTime > 0;
       const performanceTime = hasStart ? (now - (startTime as number)) / 1000 : 0;
-      const minimumTime = 30;
+      const minimumTime = 60;
 
       if (performanceTime < minimumTime) {
         setIsPerformanceIncomplete(true);
@@ -731,7 +731,12 @@ const PlaySong = () => {
               />
               {/* QR Code sobreposto no topo esquerdo */}
               <div className="absolute top-16 left-4 z-20 bg-white p-2 rounded shadow">
-                <QRCodeSVG value={`${window.location.origin}/add`} size={96} includeMargin />
+                <QRCodeSVG 
+                  value="https://karaoke-khaki.vercel.app/" 
+                  size={100} 
+                  level="H"
+                  includeMargin={true}
+                />
               </div>
               {/* Botão de Interrupção */}
               <Button
