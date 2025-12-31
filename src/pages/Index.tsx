@@ -243,7 +243,7 @@ const Index = () => {
               <div className="bg-white p-2 rounded shadow">
                 <QRCodeSVG 
                   value="https://karaoke-khaki.vercel.app/" 
-                  size={150} 
+                  size={120} 
                   level="H"
                   includeMargin={true}
                 />

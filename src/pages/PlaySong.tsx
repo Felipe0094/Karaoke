@@ -733,7 +733,7 @@ const PlaySong = () => {
               <div className="absolute top-16 left-4 z-20 bg-white p-2 rounded shadow">
                 <QRCodeSVG 
                   value="https://karaoke-khaki.vercel.app/" 
-                  size={100} 
+                  size={120} 
                   level="H"
                   includeMargin={true}
                 />
